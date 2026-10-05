@@ -12,7 +12,7 @@ export const GET = handle(async () => {
     { header: "Link", key: "link", width: 36 },
     { header: "Deadline (DD-MM-YYYY)", key: "deadline", width: 20 },
     { header: "Themes / Tracks / Problem Statements", key: "description", width: 70 },
-    { header: "Batches (blank = all current)", key: "batches", width: 26 },
+    { header: "Batches (blank = all current, All = every list)", key: "batches", width: 30 },
     { header: "Years (blank = II, III, IV)", key: "years", width: 22 },
   ];
   ws.getRow(1).eachCell((c) => {
@@ -41,7 +41,7 @@ export const GET = handle(async () => {
     ["Link", "Optional. If the Themes column is empty, the portal tries to read the themes from this page."],
     ["Deadline", "Optional. Any of 15-11-2026, 15/11/2026 or 2026-11-15."],
     ["Themes / Tracks / Problem Statements", "Strongly recommended. Paste the tracks or problem statements. If the hackathon names tracks, the results include a Track column."],
-    ["Batches", `Optional. Comma separated from: ${BATCHES.join(", ")} (short form like 25-29 also works). Blank = all batches currently studying.`],
+    ["Batches", `Optional. Comma separated from: ${BATCHES.join(", ")} (short form like 25-29 also works). Blank = all batches currently studying. Type All to search every project list, including collections such as SIH and MSME.`],
     ["Years", "Optional. Comma separated: I, II, III, IV. Blank = II, III, IV."],
   ].forEach((r, i) => { const row = help.addRow(r); row.alignment = { wrapText: true, vertical: "top" }; if (i === 0) row.font = { bold: true, size: 14 }; else row.getCell(1).font = { bold: true }; });
 

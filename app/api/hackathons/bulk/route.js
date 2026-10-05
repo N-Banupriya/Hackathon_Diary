@@ -31,7 +31,8 @@ export const POST = handle(async (req) => {
   const ok = [], errors = [];
   items.forEach((it, i) => {
     try {
-      ok.push(cleanHack({ title: it.title, link: it.link, deadline: it.deadline, description: it.description, batches: parseBatches(it.batches), years: parseYears(it.years) }));
+      const scopeAll = /^\s*all\s*$/i.test(String(it.batches || ""));
+      ok.push(cleanHack({ title: it.title, link: it.link, deadline: it.deadline, description: it.description, scopeAll, batches: scopeAll ? [] : parseBatches(it.batches), years: scopeAll ? [] : parseYears(it.years) }));
     } catch (e) { errors.push({ row: it.row ?? i + 2, title: it.title || "", error: e.message }); }
   });
   if (errors.length) return Response.json({ added: 0, errors }, { status: 400 });
@@ -41,8 +42,8 @@ export const POST = handle(async (req) => {
   try {
     await c.query("BEGIN");
     for (const h of ok) {
-      const r = await c.query(`INSERT INTO hackathons (title, link, description, batches, years, deadline, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [h.title, h.link, h.description, JSON.stringify(h.batches), JSON.stringify(h.years), h.deadline, s.role]);
+      const r = await c.query(`INSERT INTO hackathons (title, link, description, batches, years, collections, scope_all, deadline, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [h.title, h.link, h.description, JSON.stringify(h.batches), JSON.stringify(h.years), JSON.stringify(h.collections), h.scopeAll, h.deadline, s.role]);
       ids.push(r.rows[0].id);
     }
     await c.query("COMMIT");

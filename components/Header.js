@@ -39,6 +39,7 @@ export default function Header() {
           {!onLogin && (
             <nav className="mainnav">
               <Link href="/" className={path === "/" ? "active" : ""}>Project Repository</Link>
+              <Link href="/collections" className={path.startsWith("/collections") ? "active" : ""}>Collections</Link>
               <Link href="/hackathons" className={path.startsWith("/hackathons") ? "active" : ""}>Hackathons</Link>
             </nav>
           )}

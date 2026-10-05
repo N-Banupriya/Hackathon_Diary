@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { BATCHES, YEARS, batchLabel, currentYearOf } from "@/lib/config";
 import { useMe, api, fmtDate } from "./shared";
 
-const blank = () => ({ title: "", link: "", deadline: "", description: "", batches: BATCHES.filter((b) => currentYearOf(b)), years: ["II", "III", "IV"] });
+const blank = () => ({ title: "", link: "", deadline: "", description: "", scopeAll: true, batches: BATCHES.filter((b) => currentYearOf(b)), years: ["II", "III", "IV"], collections: [] });
+const FIT = { strong: "Strong", medium: "Medium", possible: "Medium" };
 
 export default function HackathonsView() {
   const me = useMe();
@@ -15,6 +16,8 @@ export default function HackathonsView() {
   const [busy, setBusy] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [fitFilter, setFitFilter] = useState("");
+  const [collections, setCollections] = useState([]);
   const [checked, setChecked] = useState(() => new Set());
   const [progress, setProgress] = useState(null); // {total, done, current, failed:[]}
   const [bulk, setBulk] = useState(null); // {fileName, rows, errors}
@@ -27,13 +30,14 @@ export default function HackathonsView() {
     } catch (e) { setList([]); setMsg({ kind: "err", text: e.message }); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api("/api/collections").then((d) => setCollections(d.collections)).catch(() => {}); }, []);
 
   const h = list?.find((x) => x.id === selId);
   const set = (k, v) => setForm((o) => ({ ...o, [k]: v }));
   const toggle = (k, v) => setForm((o) => ({ ...o, [k]: o[k].includes(v) ? o[k].filter((x) => x !== v) : [...o[k], v] }));
 
   function startNew() { setForm(blank()); setEditing("new"); setMsg(null); }
-  function startEdit() { setForm({ title: h.title, link: h.link || "", deadline: h.deadline || "", description: h.description || "", batches: h.batches, years: h.years }); setEditing("edit"); setMsg(null); }
+  function startEdit() { setForm({ title: h.title, link: h.link || "", deadline: h.deadline || "", description: h.description || "", scopeAll: !!h.scope_all, batches: h.batches || [], years: h.years || [], collections: h.collections || [] }); setEditing("edit"); setMsg(null); }
 
   async function readLink() {
     if (!form.link) { setMsg({ kind: "err", text: "Paste the hackathon link first." }); return; }
@@ -148,9 +152,16 @@ export default function HackathonsView() {
     setBulkMsg(failed.length ? { kind: "warn", text: `Matched ${done - failed.length} of ${done}. Not matched: ${failed.join(" · ")}` } : { kind: "ok", text: `Matched all ${done} hackathons. Press "Download Excel (ZIP)" to get the files.` });
   }
 
-  const matches = (h?.matches || []).filter((m) => m.fit !== "possible");
-  const hasTrack = matches.some((m) => m.track);
-  const depts = [...new Set(matches.map((m) => m.dept))].sort();
+  const allMatches = h?.matches || [];
+  const strongCount = allMatches.filter((m) => m.fit === "strong").length;
+  const matches = allMatches.filter((m) => !fitFilter || (fitFilter === "strong" ? m.fit === "strong" : m.fit !== "strong"));
+  const hasTrack = allMatches.some((m) => m.track);
+  const depts = [...new Set(allMatches.map((m) => m.dept).filter(Boolean))].sort();
+  const colName = (id) => collections.find((c) => c.id === id)?.name || "a deleted collection";
+  const scopeText = (x) => x.scope_all ? "All project lists" : [
+    x.batches?.length ? `Design Thinking ${x.batches.map(batchLabel).join(", ")} · Year ${x.years.join(", ")}` : "",
+    ...(x.collections || []).map(colName),
+  ].filter(Boolean).join(" · ");
 
   return (
     <>
@@ -159,7 +170,7 @@ export default function HackathonsView() {
           <div className="hero-text">
             <div className="hero-eyebrow">Hackathon matching</div>
             <h1 className="hero-title">Find teams for every hackathon</h1>
-            <p className="hero-sub">Add a hackathon with its link and problem statements. The portal reads every stored project and recommends only the teams that are a strong fit, with batch, year, track, roll numbers, names, project title and faculty mentor.</p>
+            <p className="hero-sub">Add a hackathon with its link and problem statements. The portal reads the stored projects (Design Thinking batches and collections such as SIH and MSME) and recommends Strong and Medium fits, with batch, year, track, roll numbers, names, project title and faculty mentor.</p>
           </div>
           <div className="hero-cta row"><button className="btn gold" onClick={startNew}>+ Add hackathon</button><button className="btn" onClick={startBulk}>Add many from Excel</button></div>
         </div>
@@ -195,10 +206,10 @@ export default function HackathonsView() {
           {list?.map((x) => (
             <div key={x.id} className="hk-row">
             <input type="checkbox" aria-label={`Select ${x.title}`} checked={checked.has(x.id)} onChange={() => toggleCheck(x.id)} />
-            <button className={`hk-item${x.id === selId && !editing ? " on" : ""}`} onClick={() => { setSelId(x.id); setEditing(null); setMsg(null); setConfirmDel(false); setShowAll(false); }}>
+            <button className={`hk-item${x.id === selId && !editing ? " on" : ""}`} onClick={() => { setSelId(x.id); setEditing(null); setMsg(null); setConfirmDel(false); setShowAll(false); setFitFilter(""); }}>
               <span className="hk-title">{x.title}</span>
               <span className="muted small">{x.deadline ? `Deadline ${fmtDate(x.deadline)}` : "No deadline set"}</span>
-              <span className={`small ${x.matches ? "okc" : "muted"}`}>{x.matches ? `${x.matches.filter((m) => m.fit !== "possible").length} strong recommendations` : "Not matched yet"}</span>
+              <span className={`small ${x.matches ? "okc" : "muted"}`}>{x.matches ? `${x.matches.filter((m) => m.fit === "strong").length} strong · ${x.matches.filter((m) => m.fit !== "strong").length} medium` : "Not matched yet"}</span>
             </button>
             </div>
           ))}
@@ -209,7 +220,7 @@ export default function HackathonsView() {
             <div className="form">
               <h2>Add many hackathons from Excel</h2>
               <ol className="steps">
-                <li><a href="/api/hackathons/template">Download the template</a> and fill one row per hackathon: name, link, deadline and the themes or problem statements. Batches and years are optional.</li>
+                <li><a href="/api/hackathons/template">Download the template</a> and fill one row per hackathon: name, link, deadline and the themes or problem statements. Batches and years are optional; type <b>All</b> in Batches to search every project list including collections.</li>
                 <li>Choose the filled file below and check the list.</li>
                 <li>Press <b>Add</b>, then <b>Match selected</b>, then <b>Download Excel (ZIP)</b>.</li>
               </ol>
@@ -231,7 +242,7 @@ export default function HackathonsView() {
                             <td className="title-cell">{r.title}{r.link && <div className="muted small">{r.link}</div>}{err && <div className="small" style={{ color: "var(--red)" }}>{err.error}</div>}</td>
                             <td className="nowrap">{r.deadline ? fmtDate(r.deadline) : <span className="muted">–</span>}</td>
                             <td className="small">{r.description ? `${r.description.slice(0, 90)}${r.description.length > 90 ? "…" : ""}` : <span className="warn">{r.link ? "Will be read from the link" : "Missing"}</span>}</td>
-                            <td className="small">{r.batches || "All current"} · {r.years || "II, III, IV"}</td>
+                            <td className="small">{/^\s*all\s*$/i.test(r.batches) ? "All project lists" : `${r.batches || "All current"} · ${r.years || "II, III, IV"}`}</td>
                           </tr>
                         );
                       })}
@@ -259,12 +270,30 @@ export default function HackathonsView() {
               <label className="field"><span>Themes, tracks and problem statements</span>
                 <textarea id="hDesc" rows={9} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Paste the themes or problem statements, or press Read page to pull the text from the link." />
               </label>
-              <div className="field"><span>Look for teams in these batches</span>
-                <div className="chips">{BATCHES.map((b) => <button type="button" key={b} className={`chip${form.batches.includes(b) ? " on" : ""}`} onClick={() => toggle("batches", b)}>{batchLabel(b)}</button>)}</div>
+              <div className="field"><span>Where to look for teams</span>
+                <div className="seg wide">
+                  <button type="button" className={form.scopeAll ? "on" : ""} onClick={() => set("scopeAll", true)}>All project lists</button>
+                  <button type="button" className={!form.scopeAll ? "on" : ""} onClick={() => set("scopeAll", false)}>Choose lists</button>
+                </div>
               </div>
-              <div className="field"><span>and these years</span>
-                <div className="chips">{YEARS.map((y) => <button type="button" key={y} className={`chip${form.years.includes(y) ? " on" : ""}`} onClick={() => toggle("years", y)}>Year {y}</button>)}</div>
-              </div>
+              {form.scopeAll ? (
+                <p className="muted small" style={{ margin: 0 }}>Every Design Thinking batch and year, and every collection ({collections.length ? collections.map((c) => c.name).join(", ") : "none yet"}).</p>
+              ) : (
+                <div className="scopebox">
+                  <div className="field"><span>Design Thinking batches</span>
+                    <div className="chips">{BATCHES.map((b) => <button type="button" key={b} className={`chip${form.batches.includes(b) ? " on" : ""}`} onClick={() => toggle("batches", b)}>{batchLabel(b)}</button>)}</div>
+                  </div>
+                  <div className="field"><span>and years</span>
+                    <div className="chips">{YEARS.map((y) => <button type="button" key={y} className={`chip${form.years.includes(y) ? " on" : ""}`} onClick={() => toggle("years", y)}>Year {y}</button>)}</div>
+                  </div>
+                  <div className="field"><span>Collections</span>
+                    {collections.length
+                      ? <div className="chips">{collections.map((c) => <button type="button" key={c.id} className={`chip${form.collections.includes(c.id) ? " on" : ""}`} onClick={() => toggle("collections", c.id)}>{c.name} <span className="muted">({c.teams})</span></button>)}</div>
+                      : <span className="muted small">No collections yet. Create them on the Collections page.</span>}
+                  </div>
+                  <span className="muted small">Leave batches or years empty to search only the chosen collections.</span>
+                </div>
+              )}
               {msg && <div className={`alert ${msg.kind || ""}`}>{msg.text}</div>}
               <div className="row"><button className="btn primary" disabled={busy === "save"}>{busy === "save" ? "Saving…" : "Save hackathon"}</button><button type="button" className="btn" onClick={() => { setEditing(null); setMsg(null); }}>Cancel</button></div>
             </form>
@@ -273,8 +302,8 @@ export default function HackathonsView() {
               <h2>How matching works</h2>
               <ol className="steps">
                 <li><b>Add the hackathons.</b> One at a time with <b>+ Add hackathon</b>, or up to 50 at once with <b>Add many from Excel</b>.</li>
-                <li><b>Choose where to look.</b> Pick the batches and years whose projects should be considered.</li>
-                <li><b>Find matching projects.</b> {me?.ai === false ? "Projects are ranked by shared keywords (an AI key can be added later for smarter matching)." : "Claude reads every stored project title, domain and sector and picks the ones that fit."}</li>
+                <li><b>Choose where to look.</b> All project lists, or particular Design Thinking batches/years and collections (SIH, MSME…).</li>
+                <li><b>Find matching projects.</b> {me?.ai === false ? "Projects are ranked by shared keywords (an AI key can be added later for smarter matching)." : "Claude reads every stored project title, domain and sector and marks each fitting team Strong or Medium."}</li>
                 <li><b>Share the recommendations.</b> Download one Excel file with a consolidated sheet and a separate sheet for each department.</li>
               </ol>
               <button className="btn primary" onClick={startNew}>+ Add hackathon</button>
@@ -285,7 +314,7 @@ export default function HackathonsView() {
                 <div>
                   <div className="eyebrow">{h.deadline ? `Deadline ${fmtDate(h.deadline)}` : "Hackathon"}</div>
                   <h2>{h.title}</h2>
-                  <div className="muted small">Looking in {h.batches.map(batchLabel).join(", ")} · Year {h.years.join(", ")}</div>
+                  <div className="muted small">Looking in: {scopeText(h)}</div>
                   {h.link && <a className="small extlink" href={h.link} target="_blank" rel="noopener noreferrer">{h.link}</a>}
                 </div>
                 <div className="row">
@@ -300,26 +329,31 @@ export default function HackathonsView() {
               <div className="matchbar">
                 <button className="btn primary" onClick={runMatch} disabled={busy === "match"}>{busy === "match" ? "Matching projects…" : h.matches ? "Match again" : "Find matching projects"}</button>
                 {busy === "match" && <span className="muted small">Reading all stored projects. This can take up to a minute.</span>}
-                {matches.length > 0 && busy !== "match" && <a className="btn gold" href={`/api/hackathons/${h.id}/export`}>Download Excel (consolidated + department sheets)</a>}
+                {allMatches.length > 0 && busy !== "match" && <a className="btn gold" href={`/api/hackathons/${h.id}/export`}>Download Excel (consolidated + department sheets)</a>}
               </div>
               {msg && <div className={`alert ${msg.kind || ""}`}>{msg.text}</div>}
 
               {h.matches && (
                 <div className="results">
                   <div className="resultbar">
-                    <span><b>{matches.length}</b> strong recommendations · {matches.reduce((n, m) => n + (m.members?.length || 0), 0)} students · {depts.length} department{depts.length === 1 ? "" : "s"} · from {h.scanned} projects · {fmtDate(h.matched_at)}{h.matched_with === "keywords" ? " · keyword match" : ""}</span>
+                    <span><b>{strongCount}</b> strong · <b>{allMatches.length - strongCount}</b> medium · {allMatches.reduce((n, m) => n + (m.members?.length || 0), 0)} students · {depts.length} department{depts.length === 1 ? "" : "s"} · from {h.scanned} projects · {fmtDate(h.matched_at)}{h.matched_with === "keywords" ? " · keyword match" : ""}</span>
+                    <span className="spacer" />
+                    <div className="seg">
+                      {[["", "All"], ["strong", "Strong"], ["medium", "Medium"]].map(([v, l]) => <button key={v} className={fitFilter === v ? "on" : ""} onClick={() => { setFitFilter(v); setShowAll(false); }}>{l}</button>)}
+                    </div>
                   </div>
                   {h.summary && <p className="muted small">{h.summary}</p>}
                   {h.themes?.length > 0 && <div className="themes">{h.themes.map((t) => <span className="tag" key={t}>{t}</span>)}</div>}
                   {matches.length ? (
                     <div className="scroll-x tablebox">
                       <table className="data">
-                        <thead><tr><th>Dept</th><th>Batch · Year</th>{hasTrack && <th>Track</th>}<th>Roll no. · Name</th><th>Project title</th><th>Faculty mentor</th><th>Why it fits</th></tr></thead>
+                        <thead><tr><th>Fit</th><th>Dept</th><th>Batch · Year</th>{hasTrack && <th>Track</th>}<th>Roll no. · Name</th><th>Project title</th><th>Faculty mentor</th><th>Why it fits</th></tr></thead>
                         <tbody>
                           {(showAll ? matches : matches.slice(0, 10)).map((m, i) => (
                             <tr key={i}>
-                              <td className="nowrap"><b>{m.dept}</b>{m.section && ` – ${m.section}`}<div className="muted small">Team #{m.teamNo}</div></td>
-                              <td className="nowrap">{batchLabel(m.batch)}<div className="muted small">Year {m.year}</div></td>
+                              <td><span className={`fit ${m.fit === "strong" ? "strong" : "medium"}`}>{FIT[m.fit] || "Medium"}</span></td>
+                              <td className="nowrap"><b>{m.dept || "–"}</b>{m.section && ` – ${m.section}`}<div className="muted small">{m.collection ? m.collection : "Design Thinking"} · #{m.teamNo}</div></td>
+                              <td className="nowrap">{m.batch ? batchLabel(m.batch) : "–"}<div className="muted small">{m.year ? `Year ${m.year}` : ""}</div></td>
                               {hasTrack && <td className="small track">{m.track ? <span className="tag">{m.track}</span> : <span className="muted">–</span>}</td>}
                               <td><div className="members">{(m.members || []).map((x, j) => <div key={j}><span className="mono">{x.roll}</span><span>{x.name}</span></div>)}</div></td>
                               <td className="title-cell">{m.title}</td>
@@ -332,7 +366,7 @@ export default function HackathonsView() {
                     </div>
                   ) : null}
                   {matches.length > 10 && <div className="pager"><button className="btn sm" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show top 10 only" : `Show all ${matches.length} teams`}</button></div>}
-                  {!matches.length && <div className="empty">No project is a strong fit for this hackathon. Try widening the batches or adding more detail to the description.</div>}
+                  {!matches.length && <div className="empty">No stored project fits this hackathon. Try searching all project lists, or add more detail to the description.</div>}
                 </div>
               )}
             </>

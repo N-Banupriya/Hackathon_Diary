@@ -21,10 +21,17 @@ export const POST = handle(async (req, { params }) => {
       }
     } catch { /* keep going with what we have */ }
   }
+  // Where to look: every list, or the chosen Design Thinking batches/years plus the chosen collections.
   const teams = (await p.query(
-    `SELECT batch, year, dept, section, team_no, title, mentor, domain, sector, domain_tags, sector_tags, members FROM teams
-      WHERE batch = ANY($1) AND year = ANY($2) AND coalesce(title,'') <> ''`, [h.batches, h.years])).rows;
-  if (!teams.length) throw new HttpError(400, "No projects are stored for the chosen batches and years. Upload the spreadsheets first, or widen the hackathon's batches.");
+    `SELECT t.batch, t.year, t.dept, t.section, t.team_no, t.title, t.mentor, t.domain, t.sector, t.domain_tags, t.sector_tags, t.members, t.extra,
+            t.collection_id, c.name AS collection
+       FROM teams t LEFT JOIN collections c ON c.id = t.collection_id
+      WHERE coalesce(t.title,'') <> ''
+        AND ($1::boolean
+             OR (t.collection_id IS NULL AND t.batch = ANY($2) AND t.year = ANY($3))
+             OR (t.collection_id IS NOT NULL AND t.collection_id::text = ANY($4)))`,
+    [h.scope_all, h.batches, h.years, h.collections || []])).rows;
+  if (!teams.length) throw new HttpError(400, "No projects are stored in the lists chosen for this hackathon. Upload the spreadsheets first, or choose more lists (Edit the hackathon).");
 
   let result, how;
   if (process.env.ANTHROPIC_API_KEY) {
@@ -36,12 +43,15 @@ export const POST = handle(async (req, { params }) => {
     result = {
       summary: String(ai.summary || "").slice(0, 400),
       themes: (Array.isArray(ai.themes) ? ai.themes : []).map(String).slice(0, 15),
-      matches: (Array.isArray(ai.matches) ? ai.matches : []).map((m) => ({ team: byId.get(String(m.id || "").trim()), fit: "strong", track: String(m.track || "").slice(0, 120), reason: String(m.reason || "").slice(0, 400) })).filter((m) => m.team),
+      matches: (Array.isArray(ai.matches) ? ai.matches : []).map((m) => ({ team: byId.get(String(m.id || "").trim()), fit: m.fit === "strong" ? "strong" : "medium", track: String(m.track || "").slice(0, 120), reason: String(m.reason || "").slice(0, 400) })).filter((m) => m.team),
     };
     how = "claude";
   } else { result = matchByKeywords(h, teams); how = "keywords"; }
 
-  const matches = result.matches.slice(0, 40).map(({ team: t, ...m }) => ({ ...m, batch: t.batch, year: t.year, dept: t.dept, section: t.section, teamNo: t.team_no, title: t.title, mentor: t.mentor, domain: t.domain, sector: t.sector, members: t.members }));
+  const rank = { strong: 0, medium: 1 };
+  const matches = result.matches.filter((m) => m.fit === "strong" || m.fit === "medium")
+    .sort((a, b) => rank[a.fit] - rank[b.fit]).slice(0, 80)
+    .map(({ team: t, ...m }) => ({ ...m, batch: t.batch, year: t.year, dept: t.dept, section: t.section, teamNo: t.team_no, title: t.title, mentor: t.mentor, domain: t.domain, sector: t.sector, members: t.members, collection: t.collection || "", extra: t.extra || {} }));
   await p.query(`UPDATE hackathons SET matches=$2, themes=$3, summary=$4, matched_at=now(), matched_with=$5, scanned=$6 WHERE id=$1`,
     [id, JSON.stringify(matches), JSON.stringify(result.themes), result.summary, how, teams.length]);
   return Response.json({ ok: true });

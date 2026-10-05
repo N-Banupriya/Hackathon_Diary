@@ -14,7 +14,7 @@ export const POST = handle(async (req) => {
   const s = await requireRole("admin", "staff");
   const h = cleanHack(await req.json());
   const p = await db();
-  const r = await p.query(`INSERT INTO hackathons (title, link, description, batches, years, deadline, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [h.title, h.link, h.description, JSON.stringify(h.batches), JSON.stringify(h.years), h.deadline, s.role]);
+  const r = await p.query(`INSERT INTO hackathons (title, link, description, batches, years, collections, scope_all, deadline, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    [h.title, h.link, h.description, JSON.stringify(h.batches), JSON.stringify(h.years), JSON.stringify(h.collections), h.scopeAll, h.deadline, s.role]);
   return Response.json({ id: r.rows[0].id });
 });

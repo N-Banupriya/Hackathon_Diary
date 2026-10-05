@@ -75,7 +75,15 @@ The tables are created automatically the first time the site is used.
 2. **Project Repository**: click a batch and year in the grid, then drop the Excel file(s) into **Upload documents**. The project list fills in automatically.
 3. The project list stays hidden until you click **Show project list**. Use the department buttons or the Domain / Sector filters to narrow it first. **Download CSV** exports what is filtered.
 4. **Hackathons → Add hackathon**: paste the link and press **Read page** (works for simple pages), or paste the themes and problem statements yourself. Choose batches and years, save, then **Find matching projects**.
-5. Only **strong** recommendations are shown. **Download Excel** gives one workbook: a *Consolidated* sheet plus one sheet per department, each headed with the hackathon name, with Batch, Year, Track (only when the hackathon has tracks), Roll No., Name, Project Title and Faculty Mentor.
+5. **Strong** and **Medium** recommendations are shown (filter with the All / Strong / Medium buttons). **Download Excel** gives one workbook: a *Consolidated* sheet plus one sheet per department, each headed with the hackathon name, with Batch, Year, Track (only when the hackathon has tracks), Roll No., Name, Project Title and Faculty Mentor.
+
+### Collections (SIH, MSME and other project lists)
+1. **Collections → + New collection**, e.g. `SIH 2025` or `MSME Idea Hackathon 5.0`.
+2. Upload its Excel lists (up to 20 per collection). Columns are found by their headings: Roll No. / Register No., Student Name, Project or Idea Title, Problem Statement ID/Title, Team Name, Theme, Department, Year, Mentor, Domain, Sector. Both layouts work: one row per student, or one row per team with Member 1/2/3 columns. Department and batch are taken from roll numbers like 24CS011 when the file has no such columns.
+3. When adding a hackathon, choose **All project lists**, or **Choose lists** and tick Design Thinking batches/years and particular collections. In the bulk template, type `All` in the Batches column to search everything.
+
+### Strong and Medium recommendations
+Matching marks each team **Strong** (fits a stated theme as it is) or **Medium** (fits with modest changes; the reason says what). The Excel files list Strong teams first, with a *Recommendation* column, and a *Project List* column when collection teams are included.
 
 ### Many hackathons at once
 1. **Hackathons → Add many from Excel → Download the template.** Fill one row per hackathon (name, link, deadline, themes; batches and years optional). Up to 50 per file.
@@ -107,4 +115,3 @@ Without `BLOB_READ_WRITE_TOKEN`, uploaded files are saved in the `.data` folder.
 - Matching sends project titles, departments, domains and sectors (not student names or roll numbers) to the AI service.
 - Hackathon sites such as Unstop or Devfolio build their pages with JavaScript, so **Read page** may get little text from them. Paste the themes manually in that case.
 - Backups: Neon keeps point-in-time history; you can also download every original file from the portal.
-Updated
